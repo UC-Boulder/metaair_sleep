@@ -1,2 +1,3 @@
 # metaair_sleep
-MetaAIR Sleep Variables
+Code for Creating MetaAIR Sleep Variables
+Code created in colloboration with Dr. Celine Vetter
