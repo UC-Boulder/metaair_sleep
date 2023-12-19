@@ -240,3 +240,5 @@ grid.arrange(SleepWork_Hist,
              MSF_Hist,
              MSW_Hist,
              AbsMSF_MSW_Hist, nrow = 4, ncol = 2)
+
+write.csv(sub.2, file = "~/Git/metaair_sleep_gutmb/metaair_sleep_output.csv", row.names = FALSE)
