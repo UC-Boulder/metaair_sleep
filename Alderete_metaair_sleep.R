@@ -20,9 +20,9 @@ rm(list=ls())
 
 # Set filepaths ----
 meta <-"/Volumes/ADORLab/Lab Projects/MetaAIR/Master Metadata/"
-
+if(str_detect(here::here(), "jagoodri")){meta <- here::here("data")}
 # Importing Data ----
-metaair <- read.csv(paste0(meta,"MetaAIRStudy_DATA_2021-05-28_1423.csv"))
+metaair <- read.csv(fs::path(meta,"MetaAIRStudy_DATA_2021-05-28_1423.csv"))
 
 # Dropping Variables ----
 sub <- dplyr::select(metaair, id, id_lab, protocol_type, towncode, age, cage, male, heightcm, exer, weightkg, bodyfatpercent, bmi, gluc_bedsidefasting, gluc_bedside120min, ogtt1yn, waistcm, insulin_yn, insulin_fasting, insulin_30min, insulin_60min, insulin_90min, insulin_120min, insulin_fasting2, insulin_30min2, insulin_60min2, insulin_90min2, insulin_120min2, gluc_fasting, gluc_30min, gluc_60min, gluc_90min, gluc_120min, hba1c, wkday_bdtime, wkend_bdtime, wkday_wake, wkend_wake, sleep_trouble, sleep_stay, snore, race___1, race___2, race___3, race___4, race___5, race___6, race_other, hisp, occupation___1, occupation___2, occupation___3, occupation___4, occupation___5, occupation___6, occupation_other, occupation_type___1, occupation_type___10, occupation_type___11, occupation_type___12, occupation_type___13, occupation_type___14, occupation_type___15, occupation_type___16, occupation_type___17, occupation_type___2, occupation_type___3, occupation_type___4, occupation_type___5, occupation_type___6, occupation_type___7, occupation_type___8, occupation_type___9)
@@ -51,6 +51,8 @@ sub.2$wkday_bdtime_decimal <- sapply(strsplit(sub.2$wkday_bdtime,":"),
                                        x[1]+x[2]/60
                                      }
 )
+
+
 
 sub.2$wkend_bdtime_decimal <- sapply(strsplit(sub.2$wkend_bdtime,":"),
                                      function(x) {
@@ -97,6 +99,19 @@ sub.2 <- sub.2 %>%
     .fns = as.numeric
   ))
 
+# Check distribution of sleep variables to ensure there are no questionable values
+hist(sub.2$wkday_bdtime_decimal)
+hist(sub.2$wkend_bdtime_decimal)
+hist(sub.2$wkday_wake_decimal)
+hist(outlier_wkndslp$wkend_wake_decimal)
+
+# jg addition: 
+# it looks like one participant may have entered their weekend bedtime incorrectly:
+# they also didn't complete the weekend wake time, so I would suggest changing this to NA:
+outlier_wkndslp <- sub.2 %>% tidylog::filter(wkend_bdtime_decimal == 12) 
+sub.2$wkend_bdtime_decimal[which(sub.2$wkend_bdtime_decimal == 12)] <- NA
+
+
 # Create Centered Sleep Variables ----
 # Subtract 24 if greater than 1600
 sub.2$wkday_bdtime_Center <- as.numeric(0)
@@ -115,11 +130,14 @@ sub.2 <- sub.2 %>%
 #Test that centering worked
 wkdaybed <- data.frame(sub.2$wkday_bdtime_decimal,sub.2$wkday_bdtime_Center)
 wkdaybed[1:40, ]
+plot(wkdaybed$sub.2.wkday_bdtime_decimal, wkdaybed$sub.2.wkday_bdtime_Center)
 
 # Sleep Duration ---- 
 ## Free and Work Days ----
 sub.2$SleepWork <- sub.2$wkday_wake_Center - sub.2$wkday_bdtime_Center
 sub.2$SleepFree <- sub.2$wkend_wake_Center - sub.2$wkend_bdtime_Center
+hist(sub.2$SleepFree)
+hist(sub.2$SleepWork)
 
 # Average Sleep ----
 sub.2$AverageSleep <- (sub.2$SleepWork + sub.2$SleepFree)/2
@@ -127,6 +145,7 @@ sub.2$AverageSleep <- (sub.2$SleepWork + sub.2$SleepFree)/2
 # Sleep Difference ----
 #Difference in Sleep Work Days vs Work Free Days   #Abs(Sleep duration on work free days - sleep duration on work days)
 sub.2$AbsDiffSleepWkendWkday <- abs(sub.2$SleepFree - sub.2$SleepWork)
+
 
 # Sleep Timing ----
 ## MSF ----
@@ -170,6 +189,16 @@ sub.2 <- sub.2 %>%
 # Sleep Debt and Short Sleep (yes/no; average sleep duration <6h)
 sub.2 <- sub.2 %>%
   mutate(SleepDebtShort = ifelse(AverageSleep <= 6, 1, 0))
+
+# Munich Chronotype from Micro MCT:
+# https://doi.org/10.1177/0748730419886986
+# Munich Chronotype is the MSF corrected for oversleep. 
+# MSF and MCT can only be used as a proxy for chronotype- indication 
+# if alarm clock is not used on work-free days.
+sub.2 <- sub.2 %>%
+  mutate(MCT = if_else(SleepFree <= SleepWork, 
+                       MSF, 
+                       MSF - (SleepFree - SleepWork)/2))
 
 # Custom histogram function ----
 create_histogram <- function(data, column, title, xlab) {
